@@ -23,12 +23,24 @@ export default function AllPerks() {
 
   // ==================== SIDE EFFECTS WITH useEffect HOOK ====================
 
- /*
- TODO: HOOKS TO IMPLEMENT
- * useEffect Hook #1: Initial Data Loading
- * useEffect Hook #2: Auto-search on Input Change
+  // useEffect Hook #1: Initial Data Loading
+  // This runs once when component mounts to load all perks
+  useEffect(() => {
+    loadAllPerks()
+  }, []) // Empty dependency array = runs once on mount
 
-*/
+  // useEffect Hook #2: Auto-search on Input Change
+  // This implements debounced search - waits 500ms after user stops typing
+  useEffect(() => {
+    // Set up a delay (debounce) before searching
+    const timeoutId = setTimeout(() => {
+      loadAllPerks()
+    }, 500) // Wait 500ms after last change
+
+    // Cleanup function: cancel the timeout if user types again
+    // This prevents unnecessary API calls while user is still typing
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, merchantFilter]) // Re-run when search or filter changes
 
   
   useEffect(() => {
@@ -67,7 +79,17 @@ export default function AllPerks() {
       })
       
       // Update perks state with response data
-      setPerks(res.data.perks)
+      // Normalize the data to handle both old and new formats
+      const normalizedPerks = (res.data.perks || []).map(perk => ({
+        ...perk,
+        // Ensure title exists (use name as fallback for old data)
+        title: perk.title || perk.name || 'Untitled Perk',
+        // Ensure discountPercent exists (extract from discount string if needed)
+        discountPercent: perk.discountPercent || 
+          (perk.discount ? parseInt(perk.discount) || 0 : 0)
+      }))
+      
+      setPerks(normalizedPerks)
       
     } catch (err) {
       // Handle errors (network failure, server error, etc.)
@@ -136,7 +158,8 @@ export default function AllPerks() {
                 type="text"
                 className="input"
                 placeholder="Enter perk name..."
-                
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
               <p className="text-xs text-zinc-500 mt-1">
                 Auto-searches as you type, or press Enter / click Search
@@ -151,7 +174,8 @@ export default function AllPerks() {
               </label>
               <select
                 className="input"
-                
+                value={merchantFilter}
+                onChange={(e) => setMerchantFilter(e.target.value)}
               >
                 <option value="">All Merchants</option>
                 
@@ -213,57 +237,62 @@ export default function AllPerks() {
           - If perks.length > 0: Show perk cards
           - If perks.length === 0: Show empty state (after the map)
         */}
-        {perks.map(perk => (
+        {perks.map(perk => {
+          // Handle both old and new data formats
+          const title = perk.title || perk.name || 'Untitled Perk';
+          const discountText = perk.discount || (perk.discountPercent > 0 ? `${perk.discountPercent}% OFF` : null);
           
-          <Link
-            key={perk._id}
-           
-            className="card hover:shadow-lg transition-shadow cursor-pointer"
-          >
-            {/* Perk Title */}
-            <div className="font-semibold text-lg text-zinc-900 mb-2">
-              {perk.title}
-            </div>
+          return (
+            <Link
+              key={perk._id}
+              to={`/perks/${perk._id}`}
+              className="card hover:shadow-lg transition-shadow cursor-pointer"
+            >
+              {/* Perk Title */}
+              <div className="font-semibold text-lg text-zinc-900 mb-2">
+                {title}
+              </div>
 
-            {/* Perk Metadata */}
-            <div className="text-sm text-zinc-600 space-y-1">
-              {/* Conditional Rendering with && operator */}
-              {/* Only show merchant if it exists */}
-              {perk.merchant && (
+              {/* Perk Metadata */}
+              <div className="text-sm text-zinc-600 space-y-1">
+                {/* Conditional Rendering with && operator */}
+                {/* Only show merchant if it exists */}
+                {perk.merchant && (
+                  <div className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs">store</span>
+                    {perk.merchant}
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">store</span>
-                  {perk.merchant}
+                  <span className="material-symbols-outlined text-xs">category</span>
+                  <span className="capitalize">{perk.category}</span>
+                </div>
+                
+                {discountText && (
+                  <div className="flex items-center gap-1 text-green-600 font-semibold">
+                    <span className="material-symbols-outlined text-xs">local_offer</span>
+                    {discountText}
+                  </div>
+                )}
+              </div>
+
+              {/* Description - truncated if too long */}
+              {perk.description && (
+                <p className="mt-2 text-sm text-zinc-700 line-clamp-2">
+                  {perk.description}
+                </p>
+              )}
+
+              {/* Creator info - populated from backend */}
+              {perk.createdBy && typeof perk.createdBy === 'object' && (
+                <div className="mt-3 pt-3 border-t border-zinc-200 text-xs text-zinc-500">
+                  Created by: {perk.createdBy.name || perk.createdBy.email}
                 </div>
               )}
-              
-              <div className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs">category</span>
-                <span className="capitalize">{perk.category}</span>
-              </div>
-              
-              {perk.discountPercent > 0 && (
-                <div className="flex items-center gap-1 text-green-600 font-semibold">
-                  <span className="material-symbols-outlined text-xs">local_offer</span>
-                  {perk.discountPercent}% OFF
-                </div>
-              )}
-            </div>
-
-            {/* Description - truncated if too long */}
-            {perk.description && (
-              <p className="mt-2 text-sm text-zinc-700 line-clamp-2">
-                {perk.description}
-              </p>
-            )}
-
-            {/* Creator info - populated from backend */}
-            {perk.createdBy && (
-              <div className="mt-3 pt-3 border-t border-zinc-200 text-xs text-zinc-500">
-                Created by: {perk.createdBy.name || perk.createdBy.email}
-              </div>
-            )}
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
 
         
         {perks.length === 0 && !loading && (

@@ -59,9 +59,13 @@ export async function getAllPerksPublic(req, res, next) {
     // Build query object dynamically
     let query = {};
     
-    // If search parameter exists, search by title (case-insensitive)
+    // If search parameter exists, search by both title and name fields (case-insensitive)
+    // Some perks use 'title', some use 'name' (legacy data)
     if (search && search.trim()) {
-      query.title = { $regex: search.trim(), $options: 'i' };
+      query.$or = [
+        { title: { $regex: search.trim(), $options: 'i' } },
+        { name: { $regex: search.trim(), $options: 'i' } }
+      ];
     }
     
     // If merchant parameter exists, filter by exact merchant name
@@ -69,10 +73,10 @@ export async function getAllPerksPublic(req, res, next) {
       query.merchant = merchant.trim();
     }
     
-    // Fetch perks with the built query, populate creator info, and sort by newest first
+    // Fetch perks with the built query and sort by newest first
+    // Don't populate createdBy to avoid errors with invalid ObjectIds in legacy data
     const perks = await Perk
       .find(query)
-      .populate('createdBy', 'name email') // Include creator information
       .sort({ createdAt: -1 })
       .lean();
 
